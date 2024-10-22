@@ -1,0 +1,92 @@
+name: Pipeline
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  get-entity:
+    runs-on: ubuntu-latest
+    outputs:
+      entity: ${{ steps.port-github-action.outputs.entity }}
+    steps:
+      - name: Generate REPOSITORY_NAME
+        run: echo "REPOSITORY_NAME=$(echo "${GITHUB_REPOSITORY}" | cut -d "/" -f2)" >> $GITHUB_ENV
+
+      - id: port-github-action
+        uses: port-labs/port-github-action@v1
+        with:
+          clientId: ${{ secrets.PORT_CLIENT_ID }}
+          clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
+          baseUrl: https://api.getport.io
+          operation: GET
+          identifier: ${{ env.REPOSITORY_NAME }}
+          blueprint: golden_repository
+
+  Pipeline:
+    runs-on: ubuntu-latest
+    needs: get-entity
+    timeout-minutes: 15
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    
+    - name: Parse entity
+      run: |
+        VERSION=$(echo '${{needs.get-entity.outputs.entity}}' | jq -r .properties.version)
+        echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+    - name: Install
+      run: ./.github/workflows/install.sh
+
+    - name: SonarCloud Scan
+      uses: SonarSource/sonarcloud-github-action@master
+      with:
+        args: >
+          -Dsonar.organization=team-devopsport
+          -Dsonar.projectKey=${{ env.REPOSITORY_NAME }}
+          -Dsonar.qualitygate.wait=true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    - name: Run Snyk to check Dockerfile manifest file for issues
+      run: |
+        curl https://static.snyk.io/cli/latest/snyk-linux -o /usr/local/bin/snyk
+        chmod +x /usr/local/bin/snyk
+        snyk auth "${{ secrets.SNYK_TOKEN }}"
+        snyk iac test --report --org="${{ secrets.SNYK_ORG }}" --severity-threshold=low --target-name="$(echo "${GITHUB_REPOSITORY}" | cut -d "/" -f2)"
+
+    - name: Release
+      run: ./.github/workflows/release.sh
+      env:
+        GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
+
+    - name: Publish
+      run: ./.github/workflows/publish.sh
+
+    - name: Updating entry in GetPort
+      uses: port-labs/port-github-action@v1
+      with:
+        clientId: ${{ secrets.PORT_CLIENT_ID }}
+        clientSecret: ${{ secrets.PORT_CLIENT_SECRET }}
+        baseUrl: https://api.getport.io
+        operation: UPSERT
+        identifier: ${{ env.REPOSITORY_NAME }}-${{ env.VERSION }}-${{ env.GIT_TAG }}
+        blueprint: golden_release
+        properties: |-
+          {
+            "deprecated": false,
+            "quality": "Passed",
+            "security": "Passed",
+            "link_to_the_ci": "https://github.com/devopsport/${{ env.REPOSITORY_NAME }}/actions/runs/${GITHUB_RUN_ID}/job/${GITHUB_RUN_NUMBER}",
+            "repository_tag": "https://github.com/devopsport/${{ env.REPOSITORY_NAME }}/tree/${{ env.GIT_TAG }}"
+          }
+        relations: |
+          {
+            "golden_repository": "${{ env.REPOSITORY_NAME }}"
+          }
