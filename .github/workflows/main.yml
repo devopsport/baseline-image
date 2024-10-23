@@ -66,20 +66,26 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-    - name: Run Snyk to check Dockerfile manifest file for issues
-      run: |
-        curl https://static.snyk.io/cli/latest/snyk-linux -o /usr/local/bin/snyk
-        chmod +x /usr/local/bin/snyk
-        snyk auth "${{ secrets.SNYK_TOKEN }}"
-        snyk iac test --report --org="${{ secrets.SNYK_ORG }}" --severity-threshold=low --target-name="$(echo "${GITHUB_REPOSITORY}" | cut -d "/" -f2)"
-
     - name: Release
       run: ./.github/workflows/release.sh
       env:
         GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
 
+    - name: Build
+      run: |
+        docker build -t $(aws sts get-caller-identity --query Account --output text).dkr.ecr.${{ secrets.AWS_DEFAULT_REGION }}.amazonaws.com/${{ env.REPOSITORY_NAME }}:${{ env.GIT_TAG }} .
+
+    - name: Run Snyk to check Dockerfile manifest file for issues
+      run: |
+        curl https://static.snyk.io/cli/latest/snyk-linux -o /usr/local/bin/snyk
+        chmod +x /usr/local/bin/snyk
+        snyk auth "${{ secrets.SNYK_TOKEN }}"
+        snyk container test $(aws sts get-caller-identity --query Account --output text).dkr.ecr.${{ secrets.AWS_DEFAULT_REGION }}.amazonaws.com/${{ env.REPOSITORY_NAME }}:${{ env.GIT_TAG }} --file=Dockerfile --severity-threshold=low
+
     - name: Publish
-      run: ./.github/workflows/publish.sh
+      run: |
+        aws ecr get-login-password --region ${{ secrets.AWS_DEFAULT_REGION }} | docker login --username AWS --password-stdin $(aws sts get-caller-identity --query Account --output text).dkr.ecr.${{ secrets.AWS_DEFAULT_REGION }}.amazonaws.com
+        docker push $(aws sts get-caller-identity --query Account --output text).dkr.ecr.${{ secrets.AWS_DEFAULT_REGION }}.amazonaws.com/${{ env.REPOSITORY_NAME }}:${{ env.GIT_TAG }}
 
     - name: Updating entry in GetPort
       uses: port-labs/port-github-action@v1
