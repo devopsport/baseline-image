@@ -49,8 +49,8 @@ jobs:
 
     - name: Install
       run: ./.github/workflows/install.sh
-      with:
-        aws-region: '${{ secrets.AWS_DEFAULT_REGION }}'
+      env:
+        AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
 
     - name: SonarCloud Scan
       uses: SonarSource/sonarcloud-github-action@master
