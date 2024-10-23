@@ -101,7 +101,7 @@ jobs:
             "deprecated": false,
             "quality": "Passed",
             "security": "Passed",
-            "link_to_the_ci": "https://github.com/devopsport/${{ env.REPOSITORY_NAME }}/actions/runs/${{ env.GITHUB_RUN_ID }}/job/${{ env.GITHUB_RUN_NUMBER }}",
+            "link_to_the_ci": "https://github.com/devopsport/${{ env.REPOSITORY_NAME }}/actions/runs/${GITHUB_RUN_ID}/job/${GITHUB_RUN_NUMBER}",
             "repository_tag": "https://github.com/devopsport/${{ env.REPOSITORY_NAME }}/tree/${{ env.GIT_TAG }}",
             "release": "${{ env.GIT_TAG }}"
           }
