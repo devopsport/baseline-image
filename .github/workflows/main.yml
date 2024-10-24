@@ -80,7 +80,7 @@ jobs:
         curl https://static.snyk.io/cli/latest/snyk-linux -o /usr/local/bin/snyk
         chmod +x /usr/local/bin/snyk
         snyk auth "${{ secrets.SNYK_TOKEN }}"
-        snyk container test $(aws sts get-caller-identity --query Account --output text).dkr.ecr.${{ secrets.AWS_DEFAULT_REGION }}.amazonaws.com/${{ env.REPOSITORY_NAME }}:${{ env.GIT_TAG }} --file=Dockerfile --severity-threshold=low
+        snyk container monitor $(aws sts get-caller-identity --query Account --output text).dkr.ecr.${{ secrets.AWS_DEFAULT_REGION }}.amazonaws.com/${{ env.REPOSITORY_NAME }}:${{ env.GIT_TAG }} --file=Dockerfile --severity-threshold=low --org=${{ secrets.SNYK_ORG }} --project-name=${{ env.REPOSITORY_NAME }}
 
     - name: Publish
       run: |
